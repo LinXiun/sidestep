@@ -12,6 +12,7 @@ local humanoid = character:WaitForChild("Humanoid")
 local DashDistance = 60
 local DashTime = 0.08
 local Interval = 0.1
+local MoveThreshold = 0.1 -- minimum MoveDirection magnitude to detect manual input
 
 -- Camera default
 local defaultCameraType = camera.CameraType
@@ -22,15 +23,15 @@ local function createTrail()
 	local trail = Instance.new("Trail")
 	trail.Lifetime = 0.1
 	trail.Transparency = NumberSequence.new(0.2, 1)
-	trail.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0), Color3.fromRGB(255, 150, 0))
+	trail.Color = ColorSequence.new(Color3.fromRGB(255,0,0), Color3.fromRGB(255,150,0))
 	local a0 = Instance.new("Attachment", humanoidRoot)
 	local a1 = Instance.new("Attachment", humanoidRoot)
-	a0.Position = Vector3.new(0, 2, 0)
-	a1.Position = Vector3.new(0, -2, 0)
+	a0.Position = Vector3.new(0,2,0)
+	a1.Position = Vector3.new(0,-2,0)
 	trail.Attachment0 = a0
 	trail.Attachment1 = a1
 	trail.Parent = humanoidRoot
-	game.Debris:AddItem(trail, 0.25)
+	game.Debris:AddItem(trail,0.25)
 end
 
 -- Camera lock/unlock
@@ -53,35 +54,39 @@ local function unlockCamera()
 	camera.CameraSubject = defaultCameraSubject
 end
 
--- Sidestep loop
+-- Sidestep logic
 local function sidestepLoop()
-	local dir = -1
 	lockCamera()
-	while true do
-		-- Stop if player manually moves
-		if humanoid.MoveDirection.Magnitude > 0 then
-			break
+	local dir = -1
+	local lastDash = 0
+
+	local conn
+	conn = RunService.RenderStepped:Connect(function(dt)
+		-- Stop if manual movement detected
+		if humanoid.MoveDirection.Magnitude > MoveThreshold then
+			conn:Disconnect()
+			unlockCamera()
+			return
 		end
 
-		dir = -dir
-		createTrail()
-		local moveDir = humanoidRoot.CFrame.RightVector * dir
-		local targetPos = humanoidRoot.Position + moveDir * DashDistance
-
-		local tween = TweenService:Create(
-			humanoidRoot,
-			TweenInfo.new(DashTime, Enum.EasingStyle.Linear),
-			{CFrame = CFrame.new(targetPos, targetPos + humanoidRoot.CFrame.LookVector)}
-		)
-		tween:Play()
-		tween.Completed:Wait()
-
-		task.wait(Interval)
-	end
-	unlockCamera()
+		-- Alternate sidestep every Interval seconds
+		if tick() - lastDash >= Interval then
+			dir = -dir
+			createTrail()
+			local moveDir = humanoidRoot.CFrame.RightVector * dir
+			local targetPos = humanoidRoot.Position + moveDir * DashDistance
+			local tween = TweenService:Create(
+				humanoidRoot,
+				TweenInfo.new(DashTime, Enum.EasingStyle.Linear),
+				{CFrame = CFrame.new(targetPos, targetPos + humanoidRoot.CFrame.LookVector)}
+			)
+			tween:Play()
+			lastDash = tick()
+		end
+	end)
 end
 
--- Start sidestep automatically when character spawns
+-- Start sidestep automatically
 task.defer(function()
 	task.wait(1)
 	sidestepLoop()

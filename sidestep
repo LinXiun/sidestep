@@ -1,15 +1,43 @@
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRoot = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
 
--- Store default camera settings
+-- CONFIG
+local DashDistance = 60
+local DashTime = 0.08
+local Interval = 0.1
+
+-- Camera default
 local defaultCameraType = camera.CameraType
 local defaultCameraSubject = camera.CameraSubject
 
--- Freeze camera at current position
+-- Optional trail
+local function createTrail()
+	local trail = Instance.new("Trail")
+	trail.Lifetime = 0.1
+	trail.Transparency = NumberSequence.new(0.2, 1)
+	trail.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0), Color3.fromRGB(255, 150, 0))
+	local a0 = Instance.new("Attachment", humanoidRoot)
+	local a1 = Instance.new("Attachment", humanoidRoot)
+	a0.Position = Vector3.new(0, 2, 0)
+	a1.Position = Vector3.new(0, -2, 0)
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Parent = humanoidRoot
+	game.Debris:AddItem(trail, 0.25)
+end
+
+-- Camera lock/unlock
+local cameraLocked = false
 local function lockCamera()
+	if cameraLocked then return end
+	cameraLocked = true
 	local fixedCFrame = camera.CFrame
 	camera.CameraType = Enum.CameraType.Scriptable
 	RunService:BindToRenderStep("LockCamera", Enum.RenderPriority.Camera.Value, function()
@@ -17,16 +45,53 @@ local function lockCamera()
 	end)
 end
 
--- Restore camera to normal
 local function unlockCamera()
+	if not cameraLocked then return end
+	cameraLocked = false
 	RunService:UnbindFromRenderStep("LockCamera")
 	camera.CameraType = defaultCameraType
 	camera.CameraSubject = defaultCameraSubject
 end
 
--- Example usage:
--- Call lockCamera() when sidestep starts
--- Call unlockCamera() when sidestep ends
+-- Sidestep loop
+local function sidestepLoop()
+	local dir = -1
+	lockCamera()
+	while true do
+		-- Stop if player manually moves
+		if humanoid.MoveDirection.Magnitude > 0 then
+			break
+		end
 
-lockCamera()      -- freezes the camera
--- unlockCamera()  -- call this when you want camera back to normal
+		dir = -dir
+		createTrail()
+		local moveDir = humanoidRoot.CFrame.RightVector * dir
+		local targetPos = humanoidRoot.Position + moveDir * DashDistance
+
+		local tween = TweenService:Create(
+			humanoidRoot,
+			TweenInfo.new(DashTime, Enum.EasingStyle.Linear),
+			{CFrame = CFrame.new(targetPos, targetPos + humanoidRoot.CFrame.LookVector)}
+		)
+		tween:Play()
+		tween.Completed:Wait()
+
+		task.wait(Interval)
+	end
+	unlockCamera()
+end
+
+-- Start sidestep automatically when character spawns
+task.defer(function()
+	task.wait(1)
+	sidestepLoop()
+end)
+
+-- Reapply on respawn
+player.CharacterAdded:Connect(function(newChar)
+	character = newChar
+	humanoidRoot = newChar:WaitForChild("HumanoidRootPart")
+	humanoid = newChar:WaitForChild("Humanoid")
+	task.wait(1)
+	sidestepLoop()
+end)

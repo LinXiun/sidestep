@@ -11,9 +11,9 @@ local humanoidRoot = character:WaitForChild("HumanoidRootPart")
 local humanoid = character:WaitForChild("Humanoid")
 
 -- CONFIG
-local DashDistance = 60     -- how far per sidestep
-local DashTime = 0.08       -- dash speed
-local Interval = 0.1        -- time between each dash
+local DashDistance = 30     -- how far per sidestep
+local DashTime = 0.1     -- dash speed
+local Interval = 0.05        -- time between each dash
 local active = true         
 
 -- Flash Trail effect (optional)

@@ -1,0 +1,79 @@
+-- ⚡ Flash Auto Sidestep (Stops on Manual Move)
+-- Put this in StarterPlayerScripts (LocalScript)
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRoot = character:WaitForChild("HumanoidRootPart")
+
+local DashDistance = 100   -- how far to sidestep
+local DashTime = 0.15      -- how long the dash lasts
+local Cooldown = 0.2       -- delay before next dash
+local active = true        -- auto sidestep toggle
+
+local dashing = false
+local movePressed = false
+
+-- Optional Flash trail effect
+local function createTrail()
+	local trail = Instance.new("Trail")
+	trail.Lifetime = 0.15
+	trail.Transparency = NumberSequence.new(0.3, 1)
+	trail.Color = ColorSequence.new(Color3.fromRGB(255, 0, 0), Color3.fromRGB(255, 150, 0))
+
+	local a0 = Instance.new("Attachment", humanoidRoot)
+	local a1 = Instance.new("Attachment", humanoidRoot)
+	a0.Position = Vector3.new(0, 2, 0)
+	a1.Position = Vector3.new(0, -2, 0)
+
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Parent = humanoidRoot
+
+	game.Debris:AddItem(trail, 0.25)
+end
+
+-- Sidestep dash left and right repeatedly
+local function sidestepLoop()
+	while active and not movePressed do
+		dashing = true
+		createTrail()
+
+		local dir = math.random(1, 2) == 1 and -1 or 1
+		local moveDir = humanoidRoot.CFrame.RightVector * dir
+		local targetPos = humanoidRoot.Position + moveDir * DashDistance
+
+		local tween = TweenService:Create(
+			humanoidRoot,
+			TweenInfo.new(DashTime, Enum.EasingStyle.Linear),
+			{CFrame = CFrame.new(targetPos, targetPos + humanoidRoot.CFrame.LookVector)}
+		)
+		tween:Play()
+
+		tween.Completed:Wait()
+		task.wait(Cooldown)
+	end
+	dashing = false
+end
+
+-- Detect manual movement input
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end
+	if input.KeyCode == Enum.KeyCode.W
+	or input.KeyCode == Enum.KeyCode.A
+	or input.KeyCode == Enum.KeyCode.S
+	or input.KeyCode == Enum.KeyCode.D then
+		movePressed = true
+		active = false
+	end
+end)
+
+-- Start sidestepping automatically when character loads
+task.defer(function()
+	task.wait(1)
+	sidestepLoop()
+end)

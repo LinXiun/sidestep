@@ -12,11 +12,7 @@ local humanoid = character:WaitForChild("Humanoid")
 local DashDistance = 60
 local DashTime = 0.08
 local Interval = 0.1
-local MoveThreshold = 0.1 -- minimum MoveDirection magnitude to detect manual input
-
--- Camera default
-local defaultCameraType = camera.CameraType
-local defaultCameraSubject = camera.CameraSubject
+local MoveThreshold = 0.1 -- detect manual movement
 
 -- Optional trail
 local function createTrail()
@@ -34,42 +30,41 @@ local function createTrail()
 	game.Debris:AddItem(trail,0.25)
 end
 
--- Camera lock/unlock
-local cameraLocked = false
-local function lockCamera()
-	if cameraLocked then return end
-	cameraLocked = true
-	local fixedCFrame = camera.CFrame
+-- Fixed-position rotatable camera
+local cameraConnection
+local function lockCameraPosition()
+	local fixedPosition = camera.CFrame.Position
 	camera.CameraType = Enum.CameraType.Scriptable
-	RunService:BindToRenderStep("LockCamera", Enum.RenderPriority.Camera.Value, function()
-		camera.CFrame = fixedCFrame
+
+	cameraConnection = RunService:BindToRenderStep("FixedCameraRotatable", Enum.RenderPriority.Camera.Value, function()
+		local rotation = camera.CFrame - camera.CFrame.Position
+		camera.CFrame = CFrame.new(fixedPosition) * rotation
 	end)
 end
 
-local function unlockCamera()
-	if not cameraLocked then return end
-	cameraLocked = false
-	RunService:UnbindFromRenderStep("LockCamera")
-	camera.CameraType = defaultCameraType
-	camera.CameraSubject = defaultCameraSubject
+local function unlockCameraPosition()
+	if cameraConnection then
+		RunService:UnbindFromRenderStep("FixedCameraRotatable")
+		cameraConnection = nil
+		camera.CameraType = Enum.CameraType.Custom -- restore normal follow
+	end
 end
 
--- Sidestep logic
+-- Sidestep loop
 local function sidestepLoop()
-	lockCamera()
+	lockCameraPosition()
 	local dir = -1
 	local lastDash = 0
 
 	local conn
-	conn = RunService.RenderStepped:Connect(function(dt)
-		-- Stop if manual movement detected
+	conn = RunService.RenderStepped:Connect(function()
+		-- Stop if player manually moves
 		if humanoid.MoveDirection.Magnitude > MoveThreshold then
 			conn:Disconnect()
-			unlockCamera()
+			unlockCameraPosition()
 			return
 		end
 
-		-- Alternate sidestep every Interval seconds
 		if tick() - lastDash >= Interval then
 			dir = -dir
 			createTrail()

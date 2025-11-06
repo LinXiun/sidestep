@@ -30,29 +30,20 @@ local function createTrail()
 	game.Debris:AddItem(trail,0.25)
 end
 
--- Fixed-position rotatable camera
-local cameraConnection
-local function lockCameraPosition()
-	local fixedPosition = camera.CFrame.Position
-	camera.CameraType = Enum.CameraType.Scriptable
+-- Fixed-position rotatable camera using invisible anchor
+local anchor = Instance.new("Part")
+anchor.Size = Vector3.new(1,1,1)
+anchor.Transparency = 1
+anchor.Anchored = true
+anchor.CanCollide = false
+anchor.Position = camera.CFrame.Position
+anchor.Parent = workspace
 
-	cameraConnection = RunService:BindToRenderStep("FixedCameraRotatable", Enum.RenderPriority.Camera.Value, function()
-		local rotation = camera.CFrame - camera.CFrame.Position
-		camera.CFrame = CFrame.new(fixedPosition) * rotation
-	end)
-end
-
-local function unlockCameraPosition()
-	if cameraConnection then
-		RunService:UnbindFromRenderStep("FixedCameraRotatable")
-		cameraConnection = nil
-		camera.CameraType = Enum.CameraType.Custom -- restore normal follow
-	end
-end
+camera.CameraType = Enum.CameraType.Attach
+camera.CameraSubject = anchor
 
 -- Sidestep loop
 local function sidestepLoop()
-	lockCameraPosition()
 	local dir = -1
 	local lastDash = 0
 
@@ -61,10 +52,14 @@ local function sidestepLoop()
 		-- Stop if player manually moves
 		if humanoid.MoveDirection.Magnitude > MoveThreshold then
 			conn:Disconnect()
-			unlockCameraPosition()
+			-- Optionally, remove anchor and restore camera
+			anchor:Destroy()
+			camera.CameraType = Enum.CameraType.Custom
+			camera.CameraSubject = humanoid
 			return
 		end
 
+		-- Alternate sidestep every Interval seconds
 		if tick() - lastDash >= Interval then
 			dir = -dir
 			createTrail()
